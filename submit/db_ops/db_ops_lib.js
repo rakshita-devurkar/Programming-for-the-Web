@@ -87,7 +87,7 @@ function dbUpdate(url, opObj) {
 			   error(err);				
 			}
 			res.forEach(function(value,index) {
-				db.collection(opObj.collection).updateOne(value, mapper.call(null,value), function(err, res) {
+				db.collection(opObj.collection).update(value, mapper.call(null,value), function(err, res) {
 					if(err) {
 						db.close();
 						error(err);
