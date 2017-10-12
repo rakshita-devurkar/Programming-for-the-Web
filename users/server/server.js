@@ -74,9 +74,7 @@ function handlePut(app) {
           if(result.length === 1) {
             request.app.locals.model.users.updateUser(request.body, request.params).
             then(function(result) {
-              if(result.modifiedCount === 1){
                 response.sendStatus(NO_CONTENT);
-              }
             }).
             catch((err) => {
               console.error(err);
@@ -115,8 +113,7 @@ function handlePut(app) {
         if(result.length === 1) {
             request.app.locals.model.users.updateUser(request.body, request.params).
             then(function(id) {
-              // response.append('Location', requestUrl(request) + '/' + id);
-              
+              // response.append('Location', requestUrl(request) + '/' + id);              
               response.sendStatus(SEE_OTHER);
             }).
             catch((err) => {
