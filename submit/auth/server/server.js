@@ -52,14 +52,14 @@ function handleNewUser(app) {
     request.app.locals.model.users.find(request.params).
       then(function(result) { 
           if(result.length === 1) {
-                // response.redirect(SEE_OTHER, requestUrl(request));
+                response.append('Location', requestUrl(request)+'/'+request.params.ID);
                 response.status(SEE_OTHER).send({ "status": "EXISTS", "info": "user "+ request.params.ID +" already exists"});
           }
           else {
             request.app.locals.model.users.newUser(request.body, request.params, request.query.pw, authTimeOut).
               then(function(token){
                 if(token) {
-                  // response.redirect(CREATED, requestUrl(request));
+                  response.append('Location', requestUrl(request)+'/'+request.params.ID);
                   response.status(CREATED).send({"status": "CREATED", "authToken": token});
                 }
               }).
