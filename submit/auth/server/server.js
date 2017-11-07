@@ -26,6 +26,11 @@ function Users(db) {
   this.users = db.collection(USERS);
 }
 
+function requestUrl(req) {
+  const port = req.app.locals.port;
+  return `${req.protocol}://${req.hostname}:${port}${req.originalUrl}`;
+}
+
 function serve(port,authTime,sslDir,model) {
   app.locals.model = model;
   authTimeOut = authTime
@@ -47,7 +52,7 @@ function handleNewUser(app) {
     request.app.locals.model.users.find(request.params).
       then(function(result) { 
           if(result.length === 1) {
-                //Set the location header
+                response.redirect(SEE_OTHER, requestUrl(request));
                 response.status(SEE_OTHER);
                 response.send({ "status": "EXISTS", "info": "user "+ request.params.ID +" already exists"});
           }
@@ -55,7 +60,7 @@ function handleNewUser(app) {
             request.app.locals.model.users.newUser(request.body, request.params, request.query.pw, authTimeOut).
               then(function(token){
                 if(token) {
-                  //Set the location header
+                  response.redirect(SEE_OTHER, requestUrl(request));
                   response.status(CREATED);
                   response.send({"status": "CREATED", "authToken": token});
                 }
