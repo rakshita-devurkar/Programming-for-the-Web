@@ -14,10 +14,6 @@ const SERVER_ERROR = 500;
 const SEE_OTHER = 303;
 const UNAUTHORIZED = 401; 
 
-const certOptions = {
-  key: fs.readFileSync('key.pem'),
-  cert: fs.readFileSync('cert.pem')
-};
 
 var authTimeOut;
 
@@ -32,6 +28,10 @@ function requestUrl(req) {
 }
 
 function serve(port,authTime,sslDir,model) {
+  const certOptions = {
+  key: fs.readFileSync(sslDir+'/key.pem'),
+  cert: fs.readFileSync(sslDir+'/cert.pem')
+  };
   app.locals.model = model;
   authTimeOut = authTime
   https.createServer(certOptions, app).listen(port);
@@ -52,17 +52,17 @@ function handleNewUser(app) {
     request.app.locals.model.users.find(request.params).
       then(function(result) { 
           if(result.length === 1) {
-                response.redirect(SEE_OTHER, requestUrl(request));
                 response.status(SEE_OTHER);
                 response.send({ "status": "EXISTS", "info": "user "+ request.params.ID +" already exists"});
+                response.redirect(SEE_OTHER, requestUrl(request));
           }
           else {
             request.app.locals.model.users.newUser(request.body, request.params, request.query.pw, authTimeOut).
               then(function(token){
                 if(token) {
-                  response.redirect(SEE_OTHER, requestUrl(request));
                   response.status(CREATED);
                   response.send({"status": "CREATED", "authToken": token});
+                  response.redirect(SEE_OTHER, requestUrl(request));
                 }
               }).
               catch((err) => {
