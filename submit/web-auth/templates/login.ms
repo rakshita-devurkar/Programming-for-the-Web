@@ -17,6 +17,6 @@
       <input name="submit" type="submit" value="Login" class="control">
       {{#qError}}<span class="error">{{qError}}<br></span>{{/qError}}
     </form> 
-    {{>footer}}
+    <p><a href="/register">Don't have an account? Register now!</a></p>
   </body>
 </html>

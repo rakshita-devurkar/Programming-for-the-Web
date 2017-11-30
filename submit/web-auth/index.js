@@ -27,7 +27,6 @@ function setupRoutes(app) {
   app.get('/', rootRedirectHandler(app));
   app.get('/login', loginUserHandler(app));
   app.get('/register', registerUserHandler(app));
-  // app.post('/account', viewAccountHandler(app));
 }
 
 function rootRedirectHandler(app) {
@@ -87,116 +86,48 @@ function registerUserHandler(app) {
 
 function loginUserHandler(app) {
   return function(req,res) {
+    const email = req.query.email;
+    const pwd = req.query.pwd;
     const isDisplay = (typeof req.query.submit === 'undefined');
     if (isDisplay) {
       res.send(doMustache(app, 'login', {}));
     }
     else {
-      app.users.loginUser(req.query)
-      .then((result) => {
-       if(result.status == 200) {
-          const userName = "Rakshita Devurkar"
-          // const userName = getUserHandler(req.query.email);
-          app.users.getUser(req.query.email,result.authToken)
-          .then((res) => {
-            res.send(doMustache(app, 'account', {name:userName}))
-          })
-          .catch((err) => {
-
-          });
-        }
-      })
+      if((email=== 'undefined' || email.trim().length === 0) || (pwd === 'undefined' || pwd.trim().length === 0)) {
+          const msg = {'email': req.query.email, 'pwd':req.query.pwd, 'qError': 'Please provide all the values'};
+            res.send(doMustache(app, 'login', msg));
+      }
+      //check for valid email
+      else {
+        app.users.loginUser(req.query)
+        .then((result) => {
+          if(result.status == 200) {
+            app.users.getUser(email,result.authToken)
+            .then((userData) => {
+              if(userData.data) {
+                const userName = userData.data.fname+" "+userData.data.lname;
+                res.send(doMustache(app, 'account', {name:userName}));
+              }
+              else if(userData.status == 401) {
+                const msg = {'email': req.query.email, 'qError': 'Auth Token not valid. Cannot login.'};
+                res.send(doMustache(app, 'login', msg));
+              }
+            })
+            .catch((err) => console.error(err));
+          }
+          else if(result.status == 404) {
+            const msg = {'email': req.query.email, 'qError': 'This email address is not present. Please try again'};
+            res.send(doMustache(app, 'login', msg));
+          }
+        })
       .catch((err) => console.error(err));
+      }
       }
     }
 }
 
 
-/*function processSearchResults(app, q, json, res) {
-  let template, view;
-  if (json.length === 0) {
-    template = 'search';
-    view = { msg: `No results found for ${q}`, q: q };
-  }
-  else {
-    template = 'results';
-    const results =
-      json.map((j) => Object.assign({}, j, { _details: JSON.stringify(j) }));
-    view = { results: results };
-  }
-  const html = doMustache(app, template, view);
-  res.send(html);
-}
 
-function viewCartHandler(app) {
-  return function(req, res) {
-    cartIdPromise(app, req, res)
-      .then((cartId) => {
-	return app.shop.getCart(cartId)
-      })
-      .then((items) => {
-	const html = doMustache(app, 'cart', { items: items });
-	res.send(html)})	
-      .catch((err) => console.error(err));
-  }
-}
-
-function cartIdPromise(app, req, res) {
-  const cartCookie = req.cookies[CART_COOKIE];
-  let cartPromise = null;
-  if (typeof cartCookie === 'undefined') {
-    cartPromise = app.shop.newCart(app);
-    cartPromise.then((cartId) => {
-      res.cookie(CART_COOKIE, cartId, { maxAge: 86400*1000 });
-    });
-  }
-  else {
-    cartPromise = Promise.resolve(cartCookie);
-  }
-  return cartPromise;
-}
-
-function addProductHandler(app) {
-  return function(req, res) {
-    let errors = [];
-    ['id', 'details'].forEach((name) => {
-      const val = req.body[name];
-      if (typeof val === 'undefined' || val.trim().length === 0) {
-	errors.put({ msg: `product ${name} undefined` });
-      }
-    });
-    if (errors.length > 0) {
-      errorPage(app, errors, res);
-    }
-    else {
-      cartIdPromise(app, req, res)
-	.then((cartId) => {
-	  const details = JSON.parse(req.body.details);
-	  return app.shop.addItem(cartId, details, req.body.id);
-	})
-	.then(function() {
-	  res.redirect('/shop/cart');	   
-	})
-	.catch((err) => console.error(err));
-    }
-  }
-}
-
-function deleteItemHandler(app) {
-  return function(req, res) {
-    const itemId = req.body.itemId;
-    if (typeof itemId === 'undefined' || itemId.trim().length === 0) {
-      errorPage(app, { msg: `cart itemId undefined` }, res);
-    }
-    else {
-      const cartId = req.cookies[CART_COOKIE];
-      const hasCart = (typeof cartId !== 'undefined')
-      const p =
-	(hasCart) ? app.shop.deleteItem(cartId, itemId) : Promise.resolve();
-      p.then(() => res.redirect('/shop/cart'));
-    }
-  };
-}*/
 
 
 /************************ Utility functions ****************************/
@@ -216,11 +147,6 @@ function doMustache(app, templateId, view) {
   return mustache.render(app.templates[templateId], view, templates);
 }
 
-function errorPage(app, errors, res) {
-  if (!Array.isArray(errors)) errors = [ errors ];
-  const html = doMustache(app, 'errors', { errors: errors });
-  res.send(html);
-}
   
 /*************************** Initialization ****************************/
 
@@ -258,22 +184,6 @@ function setup() {
   setupRoutes(app);
   https.createServer(certOptions, app).listen(port);
   console.log("Listening");
-
-  // OLD code 
-  // process.chdir(__dirname);
-  
-  // // const port = getPort(process.argv);
-  // //const app = express();
-  // //app.use(cookieParser());
-  // setupTemplates(app);
-  // // app.shop = shop;
-  // app.use(express.static(STATIC_DIR));
-  // app.use(bodyParser.urlencoded({extended: true}));
-  // setupRoutes(app);
-  // app.listen(port, function() {
-  //   console.log(`listening on port ${port}`);
-  // });
-  //End of old code
 }
 
 setup();

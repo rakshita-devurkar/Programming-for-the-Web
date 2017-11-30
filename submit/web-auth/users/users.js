@@ -9,13 +9,6 @@ function Users() {
   this.baseUrl = WS_URL;
 }
 
-//All action functions return promises.
-
-// Shop.prototype.search = function(q) {
-//   return axios.get(`${this.baseUrl}/products?q=${q}`)
-//     .then((response) => response.data);
-// }
-
 Users.prototype.registerUser = function(reqQuery) {
     const ID = reqQuery.email;
     const pwd = reqQuery.pwd;
@@ -45,37 +38,15 @@ Users.prototype.loginUser = function(reqQuery) {
 }
 
 Users.prototype.getUser = function(email, authToken) {
-  return axios.get(`${this.baseUrl}/users/${email}`)
+  const AuthStr = 'Bearer '.concat(authToken);
+  return axios.get(`${this.baseUrl}/users/${email}`, {headers: { Authorization: AuthStr }})
     .then((response) => {
-      console.log("progress");
-      // console.log(response.data);
+      return {data: response.data};
     })
     .catch((err) => {
-      console.log("Error");
-      console.log(err);
+        const errStatus = err.toString().substr(err.toString().lastIndexOf(' ')+1);
+        return {"status":errStatus};
     });
 }
-
-/*Shop.prototype.getCart = function(cartId) {
-  return axios.get(`${this.baseUrl}/carts/${cartId}`)
-    .then((response) => response.data.items);
-}
-
-Shop.prototype.addItem = function(cartId, item, itemId, quantity) {
-  quantity = (typeof quantity === 'undefined') ? 1 : quantity;
-  const data =
-    Object.assign({}, item, { productId: itemId, quantity: quantity });
-  return axios.post(`${this.baseUrl}/carts/${cartId}/items`,
-		    data, { maxRedirects: 0 })
-    .then((response) => {
-      const location = response.headers.location;
-      const itemId = location.substr(location.lastIndexOf('/') + 1);
-      return itemId;
-    });
-}
-
-Shop.prototype.deleteItem = function(cartId, itemId) {
-  return axios.delete(`${this.baseUrl}/carts/${cartId}/items/${itemId}`);
-}*/
 
 module.exports = new Users();
