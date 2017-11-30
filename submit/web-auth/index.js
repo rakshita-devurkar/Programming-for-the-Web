@@ -19,14 +19,15 @@ const users = require('./users/users');
 const STATIC_DIR = 'statics';
 const TEMPLATES_DIR = 'templates';
 
-const CART_COOKIE = 'cartId';
+const USER_COOKIE = 'userInfo';
 
 /*************************** Route Handling ****************************/
 
 function setupRoutes(app) {
   app.get('/', rootRedirectHandler(app));
-  app.get('/login', loginUserHandler(app));
   app.get('/register', registerUserHandler(app));
+  app.get('/login', loginUserHandler(app));
+  app.get('/logout',logoutUserHandler(app));
 }
 
 function rootRedirectHandler(app) {
@@ -36,7 +37,7 @@ function rootRedirectHandler(app) {
 }
 
 function registerUserHandler(app) {
-  const errorObj = {};
+  var errorObj = {};
   var errCount = 0;
   return function(req, res) {
     const isDisplay = (typeof req.query.submit === 'undefined');
@@ -48,12 +49,12 @@ function registerUserHandler(app) {
       const val = req.query[name];
       if (typeof val === 'undefined' || val.trim().length === 0) {
         const temp = name+"Error";
-        errorObj[temp] = 'Please provide this value';
+        errorObj[temp] = 'Please provide a value';
         errCount++;
       }
     });
       if(req.query.pwd !== req.query.cpwd) {
-        errorObj['cpwdError'] = 'Both the passwords should match';
+        errorObj['cpwdError'] = 'The passwords do not match';
         errCount++;
       }
       //Validate Email
@@ -62,31 +63,34 @@ function registerUserHandler(app) {
           errorObj['fname'] = req.query.fname; errorObj['lname'] = req.query.lname; errorObj['email'] = req.query.email;
           res.send(doMustache(app, 'register', errorObj));
           errCount=0;
-          errObj = {};
+          errorObj = {};
         }
         else {
         app.users.registerUser(req.query)
         .then((result) => {
           if(result.status == 201) {
+            res.cookie('USER_COOKIE',result.name, {path: '/'});
             res.send(doMustache(app, 'account', {name:result.name}));
           }
           else if(result.status == 303) {
-            const errorMsg = {qError: 'This user already exists. Please provide a different email ID'};
-            // res.send(doMustache(app, 'register', errorMsg));
-            res.send(doMustache(app, 'register', errorArray));
+            const errorMsg = {'qError': 'This user already exists. Please provide a different email address','fname':req.query.fname, 'lname':req.query.lname, 'email':req.query.email};
+            res.send(doMustache(app, 'register', errorMsg));
           }
         })
         .catch((err) => {
           console.error(err);
         });
         }
-    }
+      }
   }
 }
 
 function loginUserHandler(app) {
   return function(req,res) {
-    const email = req.query.email;
+    console.log("Inside login");
+    console.log(req.cookies.USER_COOKIE);
+    if(typeof req.cookies.USER_COOKIE === 'undefined' || req.cookies.USER_COOKIE == {}) {
+      const email = req.query.email;
     const pwd = req.query.pwd;
     const isDisplay = (typeof req.query.submit === 'undefined');
     if (isDisplay) {
@@ -106,6 +110,7 @@ function loginUserHandler(app) {
             .then((userData) => {
               if(userData.data) {
                 const userName = userData.data.fname+" "+userData.data.lname;
+                res.cookie('USER_COOKIE',userName,{path: '/'});
                 res.send(doMustache(app, 'account', {name:userName}));
               }
               else if(userData.status == 401) {
@@ -122,8 +127,21 @@ function loginUserHandler(app) {
         })
       .catch((err) => console.error(err));
       }
-      }
     }
+
+    }
+    else {
+      res.send(doMustache(app, 'account', {name:req.cookies.USER_COOKIE}));
+    }
+  } 
+}
+
+function logoutUserHandler(app) {
+  return function(req, res) {
+    console.log("Entering logout");
+    res.clearCookie(USER_COOKIE,{path: '/'});
+    res.redirect('/login');
+  };
 }
 
 
@@ -180,6 +198,7 @@ function setup() {
   app.users=users;
   app.use(express.static(STATIC_DIR));
   app.use(bodyParser.urlencoded({extended: true}));
+  app.use(cookieParser());
   setupTemplates(app);
   setupRoutes(app);
   https.createServer(certOptions, app).listen(port);

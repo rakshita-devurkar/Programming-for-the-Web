@@ -28,6 +28,6 @@
       <input name="submit" type="submit" value="Register" class="control">
       {{#qError}}<span class="error">{{qError}}<br></span>{{/qError}}
     </form> 
-    <p><a href="/login">Go back to Login Page!</a></p>
+    <p><a href="/login">Login</a></p>
   </body>
 </html>

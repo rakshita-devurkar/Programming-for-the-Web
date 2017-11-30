@@ -5,6 +5,9 @@
     <link rel="stylesheet" href="/css/style.css">
   </head>
   <body>
-    Hello {{name}} !
+    <form method="GET" action="/logout">
+      <label> Hello {{name}} ! </label>
+      <input name="submit" type="submit" value="Logout" class="control">
+    </form>
   </body>
 </html>
