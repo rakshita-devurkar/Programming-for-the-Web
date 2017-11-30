@@ -2,15 +2,9 @@
 
 const axios = require('axios');
 
-
-// const WS_URL = 'https://localhost:443';
-
-function Users() {
-  
-}
+function Users() {}
 
 Users.prototype.registerUser = function(reqQuery,baseUrl) {
-    console.log("Inside registerUser");
     const ID = reqQuery.email;
     const pwd = reqQuery.pwd;
     const data = Object.assign({}, {'fname': reqQuery.fname, 'lname':reqQuery.lname});

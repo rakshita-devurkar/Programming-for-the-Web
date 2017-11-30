@@ -58,8 +58,20 @@ function registerUserHandler(app) {
           errorObj['cpwdError'] = 'The passwords do not match';
           errCount++;
         }
-        if(!/.+@.+/.test(req.query.email)) {
+        if(!/^\S+@\S+$/g.test(req.query.email)) {
           errorObj['emailError'] = 'Please provide a valid email address';
+          errCount++;
+        }
+        if((req.query.pwd).length<8) {
+          errorObj['pwdError'] = 'Password should consist of atleast 8 characters';
+          errCount++;
+        }
+        if(!/^(?=.*\d)/g.test(req.query.pwd)) {
+          errorObj['pwdError'] = 'Password should consist of atleast 1 digit';
+          errCount++;
+        }
+        if(!/^\S+$/g.test(req.query.pwd)) {
+          errorObj['pwdError'] = 'Password should not contain whitespaces';
           errCount++;
         }
         if(errCount > 0) {
