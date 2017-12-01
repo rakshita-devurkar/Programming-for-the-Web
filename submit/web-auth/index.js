@@ -28,6 +28,7 @@ function setupRoutes(app) {
   app.get('/', rootRedirectHandler(app));
   app.get('/register', registerUserHandler(app));
   app.get('/login', loginUserHandler(app));
+  app.get('/account',accountHandler(app));
   app.get('/logout',logoutUserHandler(app));
 }
 
@@ -81,11 +82,12 @@ function registerUserHandler(app) {
           errorObj = {};
         }
         else {
-          app.users.registerUser(req.query,options.wsUrl)
+          const registerParams = {'email':req.query.email.trim(),'pwd':req.query.pwd.trim(),'fname':req.query.fname.trim(), 'lname':req.query.lname.trim()};
+          app.users.registerUser(registerParams,options.wsUrl)
           .then((result) => {
             if(result.status == 201) {
               res.cookie('USER_COOKIE',result.name);
-              res.send(doMustache(app, 'account', {name:result.name}));
+              res.redirect('/account');
             }
             else if(result.status == 303) {
               const errorMsg = {'qError': 'This user already exists. Please provide a different email address','fname':req.query.fname, 'lname':req.query.lname, 'email':req.query.email};
@@ -104,11 +106,11 @@ function loginUserHandler(app) {
   return function(req,res) {
     if(typeof req.cookies.USER_COOKIE === 'undefined' || req.cookies.USER_COOKIE == '') {
       const email = req.query.email;
-    const pwd = req.query.pwd;
-    const isDisplay = (typeof req.query.submit === 'undefined');
-    if (isDisplay) {
-      res.send(doMustache(app, 'login', {}));
-    }
+      const pwd = req.query.pwd;
+      const isDisplay = (typeof req.query.submit === 'undefined');
+        if (isDisplay) {
+          res.send(doMustache(app, 'login', {}));
+      }
     else {
       if((email=== 'undefined' || email.trim().length === 0) || (pwd === 'undefined' || pwd.trim().length === 0)) {
           const msg = {'email': req.query.email, 'pwd':req.query.pwd, 'qError': 'Please provide all the values'};
@@ -119,7 +121,8 @@ function loginUserHandler(app) {
           res.send(doMustache(app, 'login', msg));
       }
       else {
-        app.users.loginUser(req.query,options.wsUrl)
+        const loginParams = {'email':req.query.email.trim(), 'pwd':req.query.pwd.trim()};
+        app.users.loginUser(loginParams,options.wsUrl)
         .then((result) => {
           if(result.status == 200) {
             app.users.getUser(email,result.authToken,options.wsUrl)
@@ -127,7 +130,7 @@ function loginUserHandler(app) {
               if(userData.data) {
                 const userName = userData.data.fname+" "+userData.data.lname;
                 res.cookie('USER_COOKIE',userName);
-                res.send(doMustache(app, 'account', {name:userName}));
+                res.redirect('/account');
               }
               else if(userData.status == 401) {
                 const msg = {'email': req.query.email, 'qError': 'Auth Token not valid. Cannot login.'};
@@ -140,6 +143,10 @@ function loginUserHandler(app) {
             const msg = {'email': req.query.email, 'qError': 'This email address is not present. Please try again'};
             res.send(doMustache(app, 'login', msg));
           }
+          else if(result.status == 401) {
+            const msg = {'email': req.query.email, 'qError': 'Invalid password. Please try again'};
+            res.send(doMustache(app, 'login', msg));
+          }
         })
       .catch((err) => console.error(err));
       }
@@ -147,16 +154,28 @@ function loginUserHandler(app) {
 
     }
     else {
-      res.send(doMustache(app, 'account', {name:req.cookies.USER_COOKIE}));
+      res.redirect('/account');
     }
   } 
+}
+
+function accountHandler(app) {
+  return function(req, res) {
+    if(typeof req.cookies.USER_COOKIE === 'undefined' || req.cookies.USER_COOKIE == '')  {
+      res.redirect('/');
+    }
+    else {
+      res.send(doMustache(app, 'account', {name:req.cookies.USER_COOKIE}));
+    }
+  }
+
 }
 
 function logoutUserHandler(app) {
   return function(req, res) {
     res.cookie('USER_COOKIE','');
-    // res.clearCookie(USER_COOKIE,{path: '/'});
-    res.redirect('/login');
+    // res.clearCookie(USER_COOKIE);
+    res.redirect('/');
   };
 }
 
