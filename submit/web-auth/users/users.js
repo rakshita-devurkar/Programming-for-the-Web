@@ -10,7 +10,7 @@ Users.prototype.registerUser = function(reqQuery,baseUrl) {
     const data = Object.assign({}, {'fname': reqQuery.fname, 'lname':reqQuery.lname});
     return axios.put(`${baseUrl}/users/${ID}?pw=${pwd}`, data, { maxRedirects: 0 })
       .then((response) => {
-        const resObj = {"status":response.status, "name":reqQuery.fname+" "+reqQuery.lname};
+        const resObj = {"status":response.status, "authToken": response.data.authToken};
         return resObj;
       })
       .catch((err) => {

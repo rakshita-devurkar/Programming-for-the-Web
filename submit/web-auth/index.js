@@ -86,7 +86,8 @@ function registerUserHandler(app) {
           app.users.registerUser(registerParams,options.wsUrl)
           .then((result) => {
             if(result.status == 201) {
-              res.cookie('USER_COOKIE',result.name);
+              const cookieBody = {'auth':result.authToken, 'email':registerParams.email};
+              res.cookie('USER_COOKIE',cookieBody);
               res.redirect('/account');
             }
             else if(result.status == 303) {
@@ -125,19 +126,9 @@ function loginUserHandler(app) {
         app.users.loginUser(loginParams,options.wsUrl)
         .then((result) => {
           if(result.status == 200) {
-            app.users.getUser(email,result.authToken,options.wsUrl)
-            .then((userData) => {
-              if(userData.data) {
-                const userName = userData.data.fname+" "+userData.data.lname;
-                res.cookie('USER_COOKIE',userName);
-                res.redirect('/account');
-              }
-              else if(userData.status == 401) {
-                const msg = {'email': req.query.email, 'qError': 'Auth Token not valid. Cannot login.'};
-                res.send(doMustache(app, 'login', msg));
-              }
-            })
-            .catch((err) => console.error(err));
+              const cookieBody = {'auth':result.authToken, 'email':loginParams.email};
+              res.cookie('USER_COOKIE',cookieBody);
+              res.redirect('/account');
           }
           else if(result.status == 404) {
             const msg = {'email': req.query.email, 'qError': 'This email address is not present. Please try again'};
@@ -161,20 +152,32 @@ function loginUserHandler(app) {
 
 function accountHandler(app) {
   return function(req, res) {
-    if(typeof req.cookies.USER_COOKIE === 'undefined' || req.cookies.USER_COOKIE == '')  {
+    if(typeof req.cookies.USER_COOKIE === 'undefined') {
       res.redirect('/');
     }
     else {
-      res.send(doMustache(app, 'account', {name:req.cookies.USER_COOKIE}));
+      const email = req.cookies.USER_COOKIE.email;
+      const authToken = req.cookies.USER_COOKIE.auth;
+      app.users.getUser(email,authToken,options.wsUrl)
+              .then((userData) => {
+                if(userData.data) {
+                  const userName = userData.data.fname+" "+userData.data.lname;
+                  res.send(doMustache(app, 'account', {name:userName}));
+                }
+                else if(userData.status == 401) {
+                  const msg = {'email': req.query.email, 'qError': 'Session expired. Please login again'};
+                  res.clearCookie('USER_COOKIE');
+                  res.redirect('/');
+                }
+              })
+              .catch((err) => console.error(err));
     }
   }
-
 }
 
 function logoutUserHandler(app) {
   return function(req, res) {
-    res.cookie('USER_COOKIE','');
-    // res.clearCookie(USER_COOKIE);
+    res.clearCookie('USER_COOKIE');
     res.redirect('/');
   };
 }
