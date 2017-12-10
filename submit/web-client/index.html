@@ -30,6 +30,8 @@ function StoreService() {
     return axios.put(`${this.baseUrl}/users/${id}?pw=${pw}`,info, { maxRedirects: 0 })
     .then((response) => response.data)
     .catch(function(err) {
+      console.log("here");
+        console.log(err);
       const status = err.response.status;
       if (status === 303) {
         return err.response.data;
@@ -39,30 +41,84 @@ function StoreService() {
       }
     });
   }
+
+  this.getUser = function(id, authToken) {
+    return axios.request({ url: `${this.baseUrl}/users/${id}`,
+       method: 'get',
+       headers: {
+         Authorization: `Bearer ${authToken}`
+       }
+           })
+      .then((response) => response.data)
+      .catch(function(err) {
+        const status = err.response.status;
+        if (status === 401 || status === 404) {
+          return err.response.data;
+        }
+        else {
+          throw err;
+      }
+    });
+  }
 }
 
 class Account extends React.Component {
   constructor(props) {
     super(props);
-    console.log(this.props.userEmail);
     this.app = props.app;
-    this.getName = this.getName.bind(this);
+    this.state = {
+      isValid: false,
+      fname: '',
+      lname: '',
+    };
     this.userInfo = localStorage.getItem(COOKIE);
-    console.log(this.userInfo);
+    this.submitHandler = this.submitHandler.bind(this);
   }
 
-  getName() {
-    alert("Inside get name");
-    return "something";
+  componentDidMount() {
+    const self = this;
+    if(this.userInfo === "") {
+      // redirect to login
+      this.setState({isValid: false});
+    }
+    else {
+      console.log("Working");
+      const id = this.userInfo.split('|')[1];
+      const authToken = this.userInfo.split('|')[0];
+      this.app.ws.getUser(id, authToken).
+      then(function(results) {
+          self.setState({fname: results.fname});
+          self.setState({lname: results.lname});
+          self.setState({isValid: true});
+      }).
+      catch((err) => alert(err));
+    }
+  }
+
+  submitHandler(event) {
+    localStorage.setItem(COOKIE, "");
+    this.setState({isValid: false});
   }
 
   render() {
-    const name = this.getName;
-    return (
-      <div>
-      <h1>Account</h1>
-      </div>
-    );
+    const submitHandler = this;
+    const self = this;
+    if(this.state.isValid) {
+        const {fname, lname} = this.state;
+        return (
+          <div>
+          <form onSubmit={submitHandler}>
+          <h1>Account</h1>
+          Welcome {fname} {lname}!
+          <input name="submit" type="submit" value="Logout"
+                   className="control"/>
+          </form>
+          </div>
+        );
+    }
+    else {
+      return (<div>Lol</div>);
+    }
   }
 }
 
@@ -76,9 +132,11 @@ class Register extends React.Component {
       email: '',
       pwd: '',
       cPwd: '',
-      nError: '',
+      fError: '',
+      lError: '',
       eError: '',
       pError: '',
+      cpError: '',
       genError: '',
     };
     this.fnameHandler = this.fnameHandler.bind(this); this.lnameHandler = this.lnameHandler.bind(this);
@@ -89,53 +147,72 @@ class Register extends React.Component {
 
   fnameHandler(event) {
     const value = event.target.value;
-    // this.searchIsOk(q);
-    this.setState({fname: value, genError: ''});
+    const err = (value.trim().length === 0) ? 'First name cannot be empty' : '';
+    this.setState({fError: err});
+    this.setState({fname: value, genError: ''});    
   }
 
   lnameHandler(event) {
     const value = event.target.value;
-    // this.searchIsOk(q);
+    const err = (value.trim().length === 0) ? 'Last name cannot be empty' : '';
+    this.setState({lError: err});
     this.setState({lname: value, genError: ''});
   }
 
   emailHandler(event) {
     const value = event.target.value;
-    // this.searchIsOk(q);
+    const err = (value.trim().length === 0) ? 'Email address cannot be empty' : '';
+    this.setState({eError: err});
+    const err1 = (value.match(/^.+\@.+$/)) ? '' : 'Email address should be of the form user@domain';
+    this.setState({eError: err1});
     this.setState({email: value, genError: ''});
   }
 
   pwdHandler(event) {
     const value = event.target.value;
-    // this.searchIsOk(q);
+    const err = (value.trim().length === 0) ? 'Password cannot be empty' : '';
+    this.setState({pError: err});
+    if(value.trim().length < 8 || !value.match(/\d/) || value.match(/\s/)) {
+      const err1 = 'Password must contain at least 8 non-space characters with at least one digit';
+      this.setState({pError: err1});
+    }
     this.setState({pwd: value, genError: ''});
   }
 
   cPwdHandler(event) {
     const value = event.target.value;
-    // this.searchIsOk(q);
+    const err = (value.trim().length === 0) ? 'Confirm Password cannot be empty' : '';
+    this.setState({cpError: err});
+    const err1 = (this.state.pwd !== value) ? 'Both the passwords do not match' : '';
+    this.setState({cpError: err1});
     this.setState({cPwd: value, genError: ''});
   }
 
   submitHandler(event) {
-    console.log("Inside submit handler");
-    const self = this;
-    const email = this.state.email;
-    const pwd = this.state.pwd;
-    const info = {fname:this.state.fname, lname:this.state.lname};
-    this.app.ws.register(email, pwd, info).
-    then(function(results) {
-        console.log(results.authToken);
-        localStorage.setItem(COOKIE, results.authToken)
-        self.app.setActive(<Account app={self.app} userEmail={email}/>);
-    }).
-    catch((err) => alert(err));
+    if(this.state.fname === '' || this.state.lname === '' || this.state.email === '' || this.state.pwd === '' || this.state.cPwd === '') {
+      const err = "Please enter all the fields";
+      this.setState({genError: err});
+    }
+    else if(this.state.fError === '' && this.state.lError === '' && this.state.eError === '' && this.state.pError === '' && this.state.cpError === ''){
+      const self = this;
+      const email = this.state.email;
+      const pwd = this.state.pwd;
+      const info = {fname:this.state.fname, lname:this.state.lname};
+      this.app.ws.register(email, pwd, info).
+      then(function(results) {
+        console.log(results);
+        const store = results.authToken+"|"+email;
+        localStorage.setItem(COOKIE, store);
+        self.app.setActive(<Account app={self.app}/>);
+      }).
+      catch((err) => alert(err));
+      }
     event.preventDefault();
   }
 
 
   render() {
-    const {fname, lname, email, pwd, cPwd, nError, eError, pError, genError} = this.state;
+    const {fname, lname, email, pwd, cPwd, fError, lError, eError, pError, cpError, genError} = this.state;
     const {fnameHandler,lnameHandler,emailHandler,pwdHandler,cPwdHandler, submitHandler} = this;
     return(
       <div>
@@ -147,27 +224,27 @@ class Register extends React.Component {
           <input name="fname" className="control" value={fname}
                      onBlur={fnameHandler} onChange={fnameHandler} />
           <br/>
-          <span className="Error">{nError}<br/></span>
+          <span className="error">{fError}<br/></span>
           <span className="label">Last Name</span>
           <input name="lname" className="control" value={lname}
                      onBlur={lnameHandler} onChange={lnameHandler} />
           <br/>
-          <span className="Error">{nError}<br/></span>
+          <span className="error">{lError}<br/></span>
           <span className="label">Email Address</span>
           <input name="email" className="control" value={email}
                      onBlur={emailHandler} onChange={emailHandler} />
           <br/>
-          <span className="Error">{eError}<br/></span>
+          <span className="error">{eError}<br/></span>
           <span className="label">Password</span>
           <input type= "Password" name="pwd" className="control" value={pwd}
                      onBlur={pwdHandler} onChange={pwdHandler} />
           <br/>
-          <span className="Error">{pError}<br/></span>
+          <span className="error">{pError}<br/></span>
           <span className="label">Confirm Password</span>
           <input type="Password" name="cPwd" className="control" value={cPwd}
                      onBlur={cPwdHandler} onChange={cPwdHandler} />
           <br/>
-          <span className="Error">{pError}<br/></span>
+          <span className="error">{cpError}<br/></span>
         </label>
           <input name="submit" type="submit" value="Register"
                    className="control"/>
@@ -247,7 +324,6 @@ class App extends React.Component {
     const component =
       (id === 'Register') ? <Register app={this}/> : <Login app={this}/>;
     this.setActive(component);
-    console.log("Here");
     event.preventDefault();
   }
 
