@@ -12,9 +12,8 @@
   <body>
     <div id="root"></div>
       <script type="text/babel">  
-// start of everything
 (function() {
-  const WS_URL = 'https://localhost:8080';
+  const WS_URL = 'https://localhost:1236';
   const COOKIE = 'userInfo';
 
 function StoreService() {
@@ -26,18 +25,32 @@ function StoreService() {
 
   this.baseUrl = getWsUrl();
 
-  this.register = function(id, pw, info) {
-    return axios.put(`${this.baseUrl}/users/${id}?pw=${pw}`,info, { maxRedirects: 0 })
+  this.login = function(id, pw) {
+    return axios.put(`${this.baseUrl}/users/${id}/auth`,
+       { pw: pw }, { maxRedirects: 0 })
     .then((response) => response.data)
     .catch(function(err) {
-      console.log("here");
-        console.log(err);
       const status = err.response.status;
-      if (status === 303) {
-        return err.response.data;
+      if (status === 401 || status === 404) {
+  return err.response.data;
       }
       else {
-        throw err;
+  throw err;
+      }
+    });
+  }
+
+  this.register = function(id, pw, info) {
+    return axios.put(`${this.baseUrl}/users/${id}?pw=${pw}`,
+       info, { maxRedirects: 0 })
+    .then((response) => response.data)
+    .catch(function(err) {
+      const status = err.response.status;
+      if (status === 303) {
+  return err.response.data;
+      }
+      else {
+  throw err;
       }
     });
   }
@@ -75,21 +88,23 @@ class Account extends React.Component {
     this.submitHandler = this.submitHandler.bind(this);
   }
 
-  componentDidMount() {
+  componentWillMount() {
     const self = this;
     if(this.userInfo === "") {
-      // redirect to login
-      this.setState({isValid: false});
+      self.app.setActive(<Login app={self.app}/>);
     }
     else {
-      console.log("Working");
       const id = this.userInfo.split('|')[1];
       const authToken = this.userInfo.split('|')[0];
       this.app.ws.getUser(id, authToken).
       then(function(results) {
-          self.setState({fname: results.fname});
-          self.setState({lname: results.lname});
-          self.setState({isValid: true});
+          if(results.status !== 'ERROR_UNAUTHORIZED') {
+            self.setState({fname: results.fname,lname: results.lname });
+          }
+          else {
+            localStorage.setItem(COOKIE, "");
+            self.app.setActive(<Login app={self.app}/>);
+          }
       }).
       catch((err) => alert(err));
     }
@@ -97,13 +112,12 @@ class Account extends React.Component {
 
   submitHandler(event) {
     localStorage.setItem(COOKIE, "");
-    this.setState({isValid: false});
+    self.app.setActive(<Login app={self.app}/>);
   }
 
   render() {
     const submitHandler = this;
     const self = this;
-    if(this.state.isValid) {
         const {fname, lname} = this.state;
         return (
           <div>
@@ -115,10 +129,6 @@ class Account extends React.Component {
           </form>
           </div>
         );
-    }
-    else {
-      return (<div>Lol</div>);
-    }
   }
 }
 
@@ -197,15 +207,24 @@ class Register extends React.Component {
       const self = this;
       const email = this.state.email;
       const pwd = this.state.pwd;
-      const info = {fname:this.state.fname, lname:this.state.lname};
-      this.app.ws.register(email, pwd, info).
+      const fname = this.state.fname;
+      const lname = this.state.lname;
+      this.app.ws.register(email, pwd, {fname:fname, lname:lname}).
       then(function(results) {
-        console.log(results);
-        const store = results.authToken+"|"+email;
-        localStorage.setItem(COOKIE, store);
-        self.app.setActive(<Account app={self.app}/>);
+        if(results.status === 'CREATED') {
+          const store = results.authToken+"|"+email;
+          localStorage.setItem(COOKIE, store);
+          self.app.setActive(<Account app={self.app}/>);
+        }
       }).
-      catch((err) => alert(err));
+      catch(function(err) {
+        if(err.response && err.response.status === 401) {
+          self.setState({genError: 'This user already exists. Please enter a different email address'});
+        }
+        else {
+          self.setState({genError: 'Error. Please try again'});
+        }
+      })
       }
     event.preventDefault();
   }
@@ -265,25 +284,56 @@ class Login extends React.Component {
       pError: '',
       genError: '',
     };
-    this.qHandler = this.qHandler.bind(this);
+    this.eHandler = this.eHandler.bind(this);
+    this.pHandler = this.pHandler.bind(this);
     this.submitHandler = this.submitHandler.bind(this);
   }
 
-  qHandler(event) {
-    const q = event.target.value;
-    console.log("Q handler");
-    console.log(q);
-    // this.searchIsOk(q);
-    // this.setState({q: q, genError: ''});
+  eHandler(event) {
+    const value = event.target.value;
+    const err = (value.trim().length === 0) ? 'Email address cannot be empty' : '';
+    this.setState({eError: err});
+    const err1 = (value.match(/^.+\@.+$/)) ? '' : 'Email address should be of the form user@domain';
+    this.setState({eError: err1});
+    this.setState({email: value, genError: ''});
+  }
+
+  pHandler(event) {
+    const value = event.target.value;
+    const err = (value.trim().length === 0) ? 'Password cannot be empty' : '';
+    this.setState({pError: err});
+    this.setState({pwd: value, genError: ''});
   }
 
   submitHandler(event) {
-    console.log("Inside submit handler");
+    const self = this;
+    if(this.state.email === '' || this.state.pwd === '') {
+      const err = 'Enter all the fields';
+      this.setState({genError: err});
+    }
+    else if(this.state.eError === '' && this.state.pError === '') {
+      this.app.ws.login(this.state.email, this.state.pwd).
+      then(function(results) {
+        if(results.status === 'ERROR_UNAUTHORIZED') {
+          self.setState({genError: 'Please enter a valid password'});
+        }
+        else if(results.status === 'ERROR_NOT_FOUND') {
+          self.setState({genError: 'This email address does not exist'});
+        }
+        else {
+          const store = results.authToken+"|"+self.state.email;
+          localStorage.setItem(COOKIE, store);
+          self.app.setActive(<Account app={self.app}/>);
+        }
+      }).
+      catch((err) => alert(err));
+      }
+    event.preventDefault();
   }
 
   render() {
     const {email, eError, pwd, pError, genError} = this.state;
-    const {qHandler, submitHandler} = this;
+    const {eHandler, pHandler, submitHandler} = this;
     return(
       <div>
         <h1>Login</h1> 
@@ -292,14 +342,14 @@ class Login extends React.Component {
         <label>
           <span className="label">Email Address</span>
           <input name="email" className="control" value={email}
-                     onBlur={qHandler} onChange={qHandler} />
+                     onBlur={eHandler} onChange={eHandler} />
           <br/>
-          <span className="Error">{eError}<br/></span>
+          <span className="error">{eError}<br/></span>
           <span className="label">Password</span>
-          <input name="pwd" className="control" value={pwd}
-                     onBlur={qHandler} onChange={qHandler} />
+          <input type="password" name="pwd" className="control" value={pwd}
+                     onBlur={pHandler} onChange={pHandler} />
           <br/>
-          <span className="Error">{pError}<br/></span>
+          <span className="error">{pError}<br/></span>
         </label>
           <input name="submit" type="submit" value="Login"
                    className="control"/>
