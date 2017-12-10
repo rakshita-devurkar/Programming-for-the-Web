@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>User Authenticator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+      <script type="text/babel">  
+// start of everything
+(function() {
+  const WS_URL = 'https://localhost:8080';
+  const COOKIE = 'userInfo';
+
+function StoreService() {
+  
+  function getWsUrl() {
+    const params = (new URL(document.location)).searchParams;
+    return params.get('ws-url') || WS_URL;
+  }
+
+  this.baseUrl = getWsUrl();
+
+  this.register = function(id, pw, info) {
+    return axios.put(`${this.baseUrl}/users/${id}?pw=${pw}`,info, { maxRedirects: 0 })
+    .then((response) => response.data)
+    .catch(function(err) {
+      const status = err.response.status;
+      if (status === 303) {
+        return err.response.data;
+      }
+      else {
+        throw err;
+      }
+    });
+  }
+}
+
+class Account extends React.Component {
+  constructor(props) {
+    super(props);
+    console.log(this.props.userEmail);
+    this.app = props.app;
+    this.getName = this.getName.bind(this);
+    this.userInfo = localStorage.getItem(COOKIE);
+    console.log(this.userInfo);
+  }
+
+  getName() {
+    alert("Inside get name");
+    return "something";
+  }
+
+  render() {
+    const name = this.getName;
+    return (
+      <div>
+      <h1>Account</h1>
+      </div>
+    );
+  }
+}
+
+class Register extends React.Component {
+  constructor(props) {
+    super(props);
+    this.app = props.app;
+    this.state = {
+      fname: '',
+      lname: '',
+      email: '',
+      pwd: '',
+      cPwd: '',
+      nError: '',
+      eError: '',
+      pError: '',
+      genError: '',
+    };
+    this.fnameHandler = this.fnameHandler.bind(this); this.lnameHandler = this.lnameHandler.bind(this);
+    this.emailHandler = this.emailHandler.bind(this); this.pwdHandler = this.pwdHandler.bind(this);
+    this.cPwdHandler = this.cPwdHandler.bind(this);
+    this.submitHandler = this.submitHandler.bind(this);
+  }
+
+  fnameHandler(event) {
+    const value = event.target.value;
+    // this.searchIsOk(q);
+    this.setState({fname: value, genError: ''});
+  }
+
+  lnameHandler(event) {
+    const value = event.target.value;
+    // this.searchIsOk(q);
+    this.setState({lname: value, genError: ''});
+  }
+
+  emailHandler(event) {
+    const value = event.target.value;
+    // this.searchIsOk(q);
+    this.setState({email: value, genError: ''});
+  }
+
+  pwdHandler(event) {
+    const value = event.target.value;
+    // this.searchIsOk(q);
+    this.setState({pwd: value, genError: ''});
+  }
+
+  cPwdHandler(event) {
+    const value = event.target.value;
+    // this.searchIsOk(q);
+    this.setState({cPwd: value, genError: ''});
+  }
+
+  submitHandler(event) {
+    console.log("Inside submit handler");
+    const self = this;
+    const email = this.state.email;
+    const pwd = this.state.pwd;
+    const info = {fname:this.state.fname, lname:this.state.lname};
+    this.app.ws.register(email, pwd, info).
+    then(function(results) {
+        console.log(results.authToken);
+        localStorage.setItem(COOKIE, results.authToken)
+        self.app.setActive(<Account app={self.app} userEmail={email}/>);
+    }).
+    catch((err) => alert(err));
+    event.preventDefault();
+  }
+
+
+  render() {
+    const {fname, lname, email, pwd, cPwd, nError, eError, pError, genError} = this.state;
+    const {fnameHandler,lnameHandler,emailHandler,pwdHandler,cPwdHandler, submitHandler} = this;
+    return(
+      <div>
+        <h1>Register</h1> 
+        <p className="error">{genError}</p>
+        <form onSubmit={submitHandler}>
+        <label>
+          <span className="label">First Name</span>
+          <input name="fname" className="control" value={fname}
+                     onBlur={fnameHandler} onChange={fnameHandler} />
+          <br/>
+          <span className="Error">{nError}<br/></span>
+          <span className="label">Last Name</span>
+          <input name="lname" className="control" value={lname}
+                     onBlur={lnameHandler} onChange={lnameHandler} />
+          <br/>
+          <span className="Error">{nError}<br/></span>
+          <span className="label">Email Address</span>
+          <input name="email" className="control" value={email}
+                     onBlur={emailHandler} onChange={emailHandler} />
+          <br/>
+          <span className="Error">{eError}<br/></span>
+          <span className="label">Password</span>
+          <input type= "Password" name="pwd" className="control" value={pwd}
+                     onBlur={pwdHandler} onChange={pwdHandler} />
+          <br/>
+          <span className="Error">{pError}<br/></span>
+          <span className="label">Confirm Password</span>
+          <input type="Password" name="cPwd" className="control" value={cPwd}
+                     onBlur={cPwdHandler} onChange={cPwdHandler} />
+          <br/>
+          <span className="Error">{pError}<br/></span>
+        </label>
+          <input name="submit" type="submit" value="Register"
+                   className="control"/>
+        </form>
+      </div>
+    );
+  }
+}
+
+class Login extends React.Component {
+  constructor(props) {
+    super(props);
+    this.app = props.app;
+    this.state = {
+      email: '',
+      pwd: '',
+      eError: '',
+      pError: '',
+      genError: '',
+    };
+    this.qHandler = this.qHandler.bind(this);
+    this.submitHandler = this.submitHandler.bind(this);
+  }
+
+  qHandler(event) {
+    const q = event.target.value;
+    console.log("Q handler");
+    console.log(q);
+    // this.searchIsOk(q);
+    // this.setState({q: q, genError: ''});
+  }
+
+  submitHandler(event) {
+    console.log("Inside submit handler");
+  }
+
+  render() {
+    const {email, eError, pwd, pError, genError} = this.state;
+    const {qHandler, submitHandler} = this;
+    return(
+      <div>
+        <h1>Login</h1> 
+        <p className="error">{genError}</p>
+        <form onSubmit={submitHandler}>
+        <label>
+          <span className="label">Email Address</span>
+          <input name="email" className="control" value={email}
+                     onBlur={qHandler} onChange={qHandler} />
+          <br/>
+          <span className="Error">{eError}<br/></span>
+          <span className="label">Password</span>
+          <input name="pwd" className="control" value={pwd}
+                     onBlur={qHandler} onChange={qHandler} />
+          <br/>
+          <span className="Error">{pError}<br/></span>
+        </label>
+          <input name="submit" type="submit" value="Login"
+                   className="control"/>
+        </form>
+      </div>
+    );
+  }
+}
+
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.ws = props.ws;
+    this.state = { active: <Login app={this}/> }
+    this.clickHandler = this.clickHandler.bind(this);
+  }
+  setActive(component) {
+    this.setState({active: component});
+  }
+  clickHandler(event) {
+    const id = event.target.id;
+    const component =
+      (id === 'Register') ? <Register app={this}/> : <Login app={this}/>;
+    this.setActive(component);
+    console.log("Here");
+    event.preventDefault();
+  }
+
+
+  render() {
+    const activeId = this.state.active.type.name;
+    let links = [];
+    if(activeId === 'Account') {
+      links.push("");
+    }
+    else {
+        for (const id of ['Register', 'Login']) {
+          if (activeId !== id && activeId !== 'Account') {
+          const searchLink =
+            <div key={id}>
+              <a href="#" onClick={this.clickHandler} id={id}>{id}</a>
+            <br/>
+          </div>;
+          links.push(searchLink);
+        }
+      }
+    }
+    return (
+      <div>
+      {this.state.active}
+      {links}
+      </div>
+    );
+  }
+}
+
+
+
+  const ws = new StoreService();
+  ReactDOM.render(
+    <App ws={ws}/>,
+    document.getElementById('root')
+  );
+  //end of everything
+  })();  //end IIFE
+    </script>
+  </body>
+</html>
